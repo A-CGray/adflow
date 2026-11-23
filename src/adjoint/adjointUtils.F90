@@ -1421,17 +1421,22 @@ contains
         KSP master_PC_KSP, subksp
         integer(kind=intType) :: nlocal, first, ierr
 
-        ! First, KSPSetFromOptions MUST be called
-        call KSPSetFromOptions(kspObject, ierr)
-        call EChk(ierr, __FILE__, __LINE__)
+        if (trim(kspObjectType) == 'gcrodr') then
+            ! GCRODR comes from PETSc's HPDDM interface, which needs its own setup order
+            call setupGCRODRKSP(kspObject, gmresRestart, preConSide)
+        else
+            ! First, KSPSetFromOptions MUST be called
+            call KSPSetFromOptions(kspObject, ierr)
+            call EChk(ierr, __FILE__, __LINE__)
 
-        ! Set the type of solver to use:
-        call KSPSetType(kspObject, kspObjectType, ierr)
-        call EChk(ierr, __FILE__, __LINE__)
+            ! Set the type of solver to use:
+            call KSPSetType(kspObject, kspObjectType, ierr)
+            call EChk(ierr, __FILE__, __LINE__)
 
-        ! If we're using GMRES set the possible gmres restart
-        call KSPGMRESSetRestart(kspObject, gmresRestart, ierr)
-        call EChk(ierr, __FILE__, __LINE__)
+            ! If we're using GMRES set the possible gmres restart
+            call KSPGMRESSetRestart(kspObject, gmresRestart, ierr)
+            call EChk(ierr, __FILE__, __LINE__)
+        end if
 
         ! Set the orthogonalization method for GMRES
         select case (GMRESOrthogType)
@@ -1585,8 +1590,13 @@ contains
         PC shellPC
         integer(kind=intType) :: ierr
 
-        call KSPSetType(kspObject, kspObjectType, ierr)
-        call EChk(ierr, __FILE__, __LINE__)
+        if (trim(kspObjectType) == 'gcrodr') then
+            ! GCRODR comes from PETSc's HPDDM interface, which needs its own setup order
+            call setupGCRODRKSP(kspObject, gmresRestart, preConSide)
+        else
+            call KSPSetType(kspObject, kspObjectType, ierr)
+            call EChk(ierr, __FILE__, __LINE__)
+        end if
 
         ! Set the preconditioner side from option:
         if (trim(preConSide) == 'right') then
@@ -1642,6 +1652,66 @@ contains
         amgLocalPreConItsCoarse = localPreConItsCoarse
 
     end subroutine setupStandardMultigrid
+
+    subroutine setupGCRODRKSP(kspObject, gmresRestart, preConSide)
+
+        ! Set up the supplied kspObject as PETSc's HPDDM implementation of
+        ! GCRO-DR (GMRES with deflated restarting and subspace recycling).
+        !
+        ! KSPHPDDM reads its Krylov method, restart length and recycle size
+        ! from the options database, and it also fixes its left/right
+        ! preconditioning variant, during KSPSetFromOptions. The KSP type
+        ! and preconditioner side must therefore be set before that call. The
+        ! options are removed again afterwards so they do not leak into any
+        ! other KSP object that calls KSPSetFromOptions later.
+        use constants
+        use utils, only: EChk
+        use inputADjoint, only: adjRecycleSize
+#include <petsc/finclude/petsc.h>
+        use petsc
+        implicit none
+
+        ! Inputs
+        KSP kspObject
+        character(len=*), intent(in) :: preConSide
+        integer(kind=intType), intent(in) :: gmresRestart
+
+        ! Working Variables
+        integer(kind=intType) :: ierr
+        character(len=maxStringLen) :: optionValue
+
+        call KSPSetType(kspObject, KSPHPDDM, ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+        if (trim(preConSide) == 'right') then
+            call KSPSetPCSide(kspObject, PC_RIGHT, ierr)
+        else
+            call KSPSetPCSide(kspObject, PC_LEFT, ierr)
+        end if
+        call EChk(ierr, __FILE__, __LINE__)
+
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, '-ksp_hpddm_type', 'gcrodr', ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+        write (optionValue, '(I0)') gmresRestart
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, '-ksp_gmres_restart', trim(optionValue), ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+        write (optionValue, '(I0)') adjRecycleSize
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, '-ksp_hpddm_recycle', trim(optionValue), ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+        call KSPSetFromOptions(kspObject, ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+        call PetscOptionsClearValue(PETSC_NULL_OPTIONS, '-ksp_hpddm_type', ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+        call PetscOptionsClearValue(PETSC_NULL_OPTIONS, '-ksp_gmres_restart', ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+        call PetscOptionsClearValue(PETSC_NULL_OPTIONS, '-ksp_hpddm_recycle', ierr)
+        call EChk(ierr, __FILE__, __LINE__)
+
+    end subroutine setupGCRODRKSP
 
     subroutine destroyPETScVars
 

@@ -1467,6 +1467,12 @@ adjointSolver:
   Richardson: Preconditioned Richardson iterative method
   BCGS: BiCGStab
   IBCGS: Improved BiCGStab
+  GCRODR: >
+    GCRO-DR (GMRES with deflated restarting and subspace recycling) from PETSc's HPDDM interface.
+    At each restart it keeps a small set of approximate eigenvectors, which are also recycled between consecutive adjoint solves.
+    The number of recycled vectors is set by :py:data:`adjointRecycleSize`.
+    Requires PETSc built with HPDDM (``--download-hpddm``).
+    :py:data:`GMRESOrthogonalizationType` is ignored by this solver: HPDDM's default classical Gram-Schmidt is used.
 
 GMRESOrthogonalizationType:
   desc: >
@@ -1484,6 +1490,12 @@ adjointMaxIter:
 adjointSubspaceSize:
   desc: >
     The size of the Krylov subspace for the adjoint solution.
+
+adjointRecycleSize:
+  desc: >
+    Number of approximate eigenvectors (harmonic Ritz vectors) recycled by the GCRODR adjoint solver.
+    Must be smaller than :py:data:`adjointSubspaceSize`.
+    Ignored by all other adjoint solvers.
 
 adjointMonitorStep:
   desc: >

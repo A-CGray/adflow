@@ -819,6 +819,7 @@ module inputADjoint
     ! adjRestart    : Maximum number of steps before restart
     !                 It has a high impact on the required memory!
     ! adjMonStep    : Convergence monitor step
+    ! adjRecycleSize: Number of harmonic Ritz vectors recycled by GCRODR
 
     real(kind=alwaysRealType) :: adjRelTol
     real(kind=alwaysRealType) :: adjAbsTol
@@ -828,6 +829,7 @@ module inputADjoint
     integer(kind=intType) :: adjMaxIter
     integer(kind=intType) :: adjRestart
     integer(kind=intType) :: adjMonStep
+    integer(kind=intType) :: adjRecycleSize
 
     ! outerPCIts : Number of iterations to run for on (global) preconditioner
     ! intterPCIts : Number of iterations to run on local preconditioner
